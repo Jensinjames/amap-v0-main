@@ -1,68 +1,50 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
-import { sendPasswordResetEmail } from "@/lib/auth-client"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react"
+
+import { useState } from "react"
+import { sendPasswordResetEmail } from "@/lib/auth"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import Link from "next/link"
+import { Button } from "@/components/ui/button"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
-  const [error, setError] = useState("")
+  const [sent, setSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setStatus("loading")
-    setError("")
     try {
       await sendPasswordResetEmail(email)
-      setStatus("success")
+      setSent(true)
     } catch (err: any) {
       setError(err.message)
-      setStatus("error")
     }
   }
 
+  if (sent) {
+    return (
+      <div className="max-w-md mx-auto py-16 text-center">
+        <h1 className="text-2xl font-semibold mb-4">Check your email</h1>
+        <p>We’ve sent you a link to reset your password.</p>
+      </div>
+    )
+  }
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Forgot password</CardTitle>
-          <CardDescription>Enter your email and we'll send you a reset link.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {status === "success" ? (
-            <p className="text-center text-sm font-medium text-green-600">Reset link sent! Check your inbox.</p>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={status === "loading"}
-                />
-              </div>
-              <Button className="w-full" disabled={status === "loading"}>
-                {status === "loading" ? "Sending…" : "Send reset link"}
-              </Button>
-              {error && <p className="text-center text-sm font-medium text-red-600">{error}</p>}
-            </form>
-          )}
-          <div className="mt-4 text-center text-sm">
-            Remembered?{" "}
-            <Link href="/auth/signin" className="underline hover:text-primary">
-              Sign in
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    </main>
+    <form onSubmit={onSubmit} className="max-w-md mx-auto py-16 flex flex-col gap-4">
+      <h1 className="text-2xl font-semibold text-center">Forgot your password?</h1>
+      <Input
+        type="email"
+        placeholder="you@example.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+      <Button type="submit" className="w-full">
+        Send reset link
+      </Button>
+    </form>
   )
 }

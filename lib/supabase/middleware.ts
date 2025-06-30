@@ -1,15 +1,25 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createMiddlewareClient } from "@supabase/ssr"
+import { createServerClient, type CookieOptions } from "@supabase/ssr"
 
+/**
+ * Keeps the Supabase session cookie fresh on every request.
+ * MUST be called from Next.js middleware.
+ */
 export async function updateSession(request: NextRequest) {
-  // Ensure the user’s session cookie is kept up-to-date on every request.
   const response = NextResponse.next()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get: (name: string) => request.cookies.get(name)?.value,
+        set: (name: string, value: string, options: CookieOptions) => response.cookies.set({ name, value, ...options }),
+        remove: (name: string, options: CookieOptions) => response.cookies.delete({ name, ...options }),
+      },
+    },
+  )
 
-  const supabase = createMiddlewareClient({
-    req: request,
-    res: response,
-  })
-
+  // Refresh user if the JWT is close to expiring
   await supabase.auth.getSession()
   return response
 }

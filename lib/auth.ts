@@ -1,79 +1,27 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
-import { headers } from "next/headers"
-import { redirect } from "next/navigation"
+import { createSupabaseServerClient } from "@/lib/supabase/server"
 
-export async function signIn(formData: FormData) {
-  const email = formData.get("email") as string
-  const password = formData.get("password") as string
-  const supabase = createClient()
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
-
-  if (error) {
-    return redirect("/auth/signin?message=Could not authenticate user")
-  }
-
-  return redirect("/dashboard")
-}
-
-export async function signUp(formData: FormData) {
-  const origin = headers().get("origin")
-  const email = formData.get("email") as string
-  const password = formData.get("password") as string
-  const supabase = createClient()
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${origin}/auth/callback`,
-    },
-  })
-
-  if (error) {
-    console.error(error)
-    return redirect("/auth/signup?message=Could not create user")
-  }
-
-  return redirect("/auth/signup?message=Check email to continue sign up process")
-}
-
-export async function requestPasswordReset(formData: FormData) {
-  const origin = headers().get("origin")
-  const email = formData.get("email") as string
-  const supabase = createClient()
-
+/**
+ * Sends a password-reset email that points to /auth/update-password
+ */
+export async function sendPasswordResetEmail(email: string) {
+  const supabase = createSupabaseServerClient()
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/update-password`,
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/update-password`,
   })
-
-  if (error) {
-    return redirect("/auth/forgot-password?message=Could not send reset link")
-  }
-
-  return redirect("/auth/forgot-password?message=Password reset link has been sent")
+  if (error) throw error
+  return { success: true }
 }
 
-export async function updatePassword(formData: FormData) {
-  const password = formData.get("password") as string
-  const supabase = createClient()
-
-  const { error } = await supabase.auth.updateUser({ password })
-
-  if (error) {
-    return redirect("/auth/update-password?message=Could not update password")
-  }
-
-  return redirect("/auth/signin?message=Password updated successfully. Please sign in.")
-}
-
-export async function signOut() {
-  const supabase = createClient()
-  await supabase.auth.signOut()
-  return redirect("/")
+/**
+ * Updates the currently authenticated user’s password.
+ * (User is signed in automatically by Supabase after following
+ * the reset-password link.)
+ */
+export async function updateUserPassword(newPassword: string) {
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
+  return { success: true }
 }
