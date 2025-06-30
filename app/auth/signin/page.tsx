@@ -6,17 +6,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { signIn } from "next-auth/react"
 import { useState } from "react"
-import { useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useRouter } from "next/navigation"
 
 export default function SignInPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
-  const searchParams = useSearchParams()
-  const callbackUrl = searchParams.get("callbackUrl") || "/"
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,25 +27,16 @@ export default function SignInPage() {
     }
 
     try {
-      const signInResponse = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-        callbackUrl,
-      })
-
-      if (signInResponse?.error) {
-        setError(
-          signInResponse.error === "CredentialsSignin"
-            ? "Invalid email or password."
-            : "An error occurred while signing in.",
-        )
+      const supabase = createClientComponentClient()
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setError(error.message)
       } else {
-        // No error, sign-in was successful
-        window.location.href = callbackUrl // Redirect manually
+        router.push("/dashboard")
+        router.refresh()
       }
     } catch (err: any) {
-      console.error("An unexpected error occurred:", err)
+      console.error(err)
       setError("An unexpected error occurred. Please try again.")
     }
   }
