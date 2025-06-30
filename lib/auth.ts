@@ -1,108 +1,72 @@
-import { supabase } from "./supabase"
+"use server"
 
-export const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
-  const { data, error } = await supabase.auth.signUp({
+import { createClient } from "@/lib/supabase/server"
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
+
+export async function signIn(formData: FormData) {
+  const email = formData.get("email") as string
+  const password = formData.get("password") as string
+  const supabase = createClient()
+
+  const { error } = await supabase.auth.signInWithPassword({
     email,
     password,
-    options: {
-      data: {
-        first_name: firstName,
-        last_name: lastName,
-      },
-    },
   })
 
-  if (error) throw error
-
-  // Create user profile and initial plan
-  if (data.user) {
-    await createUserProfile(data.user.id, email, firstName, lastName)
+  if (error) {
+    return redirect("/auth/signin?message=Could not authenticate user")
   }
 
-  return data
+  return redirect("/dashboard")
 }
 
-export const signIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
+export async function signUp(formData: FormData) {
+  const origin = headers().get("origin")
+  const email = formData.get("email") as string
+  const password = formData.get("password") as string
+  const supabase = createClient()
+
+  const { error } = await supabase.auth.signUp({
     email,
     password,
-  })
-
-  if (error) throw error
-  return data
-}
-
-export const signInWithMagicLink = async (email: string) => {
-  const { data, error } = await supabase.auth.signInWithOtp({
-    email,
     options: {
-      emailRedirectTo: `${window.location.origin}/dashboard`,
+      emailRedirectTo: `${origin}/auth/callback`,
     },
   })
 
-  if (error) throw error
-  return data
+  if (error) {
+    return redirect("/auth/signup?message=Could not create user")
+  }
+
+  return redirect("/auth/signup?message=Check email to continue sign up process")
 }
 
-export const signOut = async () => {
-  const { error } = await supabase.auth.signOut()
-  if (error) throw error
-}
+export async function requestPasswordReset(formData: FormData) {
+  const origin = headers().get("origin")
+  const email = formData.get("email") as string
+  const supabase = createClient()
 
-export const getCurrentUser = async () => {
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  if (error) throw error
-  return user
-}
-
-const createUserProfile = async (userId: string, email: string, firstName: string, lastName: string) => {
-  // Create user profile
-  const { error: profileError } = await supabase.from("users").insert({
-    id: userId,
-    email,
-    first_name: firstName,
-    last_name: lastName,
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/update-password`,
   })
 
-  if (profileError) throw profileError
+  if (error) {
+    return redirect("/auth/forgot-password?message=Could not send reset link")
+  }
 
-  // Create initial plan (starter with trial)
-  const { error: planError } = await supabase.from("user_plans").insert({
-    user_id: userId,
-    plan_name: "starter",
-    credits_limit: 50,
-    seat_count: 1,
-    status: "trialing",
-    trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
-  })
-
-  if (planError) throw planError
-
-  // Create initial credits
-  const { error: creditsError } = await supabase.from("user_credits").insert({
-    user_id: userId,
-    monthly_limit: 50,
-    credits_used: 0,
-  })
-
-  if (creditsError) throw creditsError
+  return redirect("/auth/forgot-password?message=Password reset link has been sent")
 }
 
-export const sendPasswordResetEmail = async (email: string) => {
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/auth/update-password`,
-  })
+export async function updatePassword(formData: FormData) {
+  const password = formData.get("password") as string
+  const supabase = createClient()
 
-  if (error) throw error
-  return data
-}
+  const { error } = await supabase.auth.updateUser({ password })
 
-export const updateUserPassword = async (password: string) => {
-  const { data, error } = await supabase.auth.updateUser({ password })
+  if (error) {
+    return redirect("/auth/update-password?message=Could not update password")
+  }
 
-  if (error) throw error
-  return data
+  return redirect("/dashboard")
 }
