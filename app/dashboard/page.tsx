@@ -21,8 +21,7 @@ import {
   Download,
 } from "lucide-react"
 import Link from "next/link"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
+import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import SignOutButton from "@/components/auth/sign-out-button"
 
@@ -98,13 +97,14 @@ const recentContent = [
 ]
 
 export default async function DashboardPage() {
-  const supabase = createServerComponentClient({ cookies })
+  const supabase = createClient()
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (error || !user) {
     redirect("/auth/signin")
   }
 
@@ -130,27 +130,68 @@ export default async function DashboardPage() {
   const creditPercentage = (credits.used / credits.total) * 100
 
   return (
-    <div className="space-y-8">
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's what's happening with your content.</p>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">Welcome back, {user.user_metadata?.first_name || user.email}!</p>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className="px-3 py-1">
-            {currentPlan.name} Plan
-            {currentPlan.trialDays > 0 && ` • ${currentPlan.trialDays} days left`}
-          </Badge>
-          <Link href="/generate">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Content
-            </Button>
-          </Link>
-          <SignOutButton />
-        </div>
+        <SignOutButton />
       </div>
+
+      {/* User Information Card */}
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl">User Information</CardTitle>
+          <CardDescription>Your account details</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-muted rounded-md text-sm overflow-x-auto">
+            <p>
+              <strong>Email:</strong> {user.email}
+            </p>
+            <p>
+              <strong>Name:</strong> {user.user_metadata?.first_name} {user.user_metadata?.last_name}
+            </p>
+            <p>
+              <strong>Joined:</strong> {new Date(user.created_at).toLocaleDateString()}
+            </p>
+            <p>
+              <strong>Last Sign In:</strong> {new Date(user.last_sign_in_at || "").toLocaleDateString()}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions Card */}
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl">Quick Actions</CardTitle>
+          <CardDescription>Common tasks</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-muted rounded-md text-sm overflow-x-auto">
+            <p>• Generate content</p>
+            <p>• Manage team</p>
+            <p>• View analytics</p>
+            <p>• Update billing</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Activity Card */}
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl">Recent Activity</CardTitle>
+          <CardDescription>Your latest actions</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-muted rounded-md text-sm overflow-x-auto">
+            <p className="text-sm text-gray-600">No recent activity</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Session Information Card */}
       <Card className="w-full max-w-lg">
@@ -161,13 +202,13 @@ export default async function DashboardPage() {
         <CardContent className="space-y-4">
           <div className="p-4 bg-muted rounded-md text-sm overflow-x-auto">
             <p>
-              <strong>Email:</strong> {session.user.email}
+              <strong>Email:</strong> {user.email}
             </p>
             <p>
-              <strong>User ID:</strong> {session.user.id}
+              <strong>User ID:</strong> {user.id}
             </p>
             <p>
-              <strong>Expires at:</strong> {new Date(session.expires_at * 1000).toLocaleString()}
+              <strong>Expires at:</strong> {new Date(user.expires_at * 1000).toLocaleString()}
             </p>
           </div>
         </CardContent>

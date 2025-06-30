@@ -25,6 +25,8 @@ export async function signUp(formData: FormData) {
   const origin = headers().get("origin")
   const email = formData.get("email") as string
   const password = formData.get("password") as string
+  const firstName = formData.get("firstName") as string
+  const lastName = formData.get("lastName") as string
   const supabase = createClient()
 
   const { error } = await supabase.auth.signUp({
@@ -32,6 +34,10 @@ export async function signUp(formData: FormData) {
     password,
     options: {
       emailRedirectTo: `${origin}/auth/callback`,
+      data: {
+        first_name: firstName,
+        last_name: lastName,
+      },
     },
   })
 
@@ -74,4 +80,19 @@ export async function signOut() {
   const supabase = createClient()
   await supabase.auth.signOut()
   return redirect("/")
+}
+
+export async function getCurrentUser() {
+  const supabase = createClient()
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
+
+  if (error) {
+    console.error("Error getting user:", error)
+    return null
+  }
+
+  return user
 }

@@ -9,8 +9,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
 }
 
-/**
- * Singleton browser Supabase client.
- * Prevents "Multiple GoTrueClient instances detected" warning.
- */
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+// Create a singleton browser client to prevent "Multiple GoTrueClient instances" warning
+let browserClient: ReturnType<typeof createBrowserClient> | undefined
+
+export function createClient() {
+  if (!browserClient) {
+    browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  }
+  return browserClient
+}
+
+// Export the singleton instance for direct use
+export const supabase = createClient()

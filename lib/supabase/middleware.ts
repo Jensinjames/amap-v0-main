@@ -54,6 +54,7 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
+  // Refreshing the auth token
   await supabase.auth.getUser()
 
   return response
