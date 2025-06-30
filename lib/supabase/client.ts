@@ -1,29 +1,32 @@
-"use client"
-
 import { createBrowserClient } from "@supabase/ssr"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 /**
- * Returns a singleton browser Supabase client.
- * Prevents “Multiple GoTrueClient instances detected” warnings
- * during Hot-Module-Replacement / Fast Refresh.
+ * Guard against missing env variables (will fail fast during build / runtime).
  */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Singleton browser client to prevent “Multiple GoTrueClient instances”.    */
+/* -------------------------------------------------------------------------- */
 let browserClient: SupabaseClient | undefined
 
 export function getBrowserClient(): SupabaseClient {
-  if (browserClient) return browserClient
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!url || !anon) {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set")
+  if (!browserClient) {
+    browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey)
   }
-
-  browserClient = createBrowserClient(url, anon)
   return browserClient
 }
 
-/* Named + default export for convenience throughout the app */
+/**
+ * Named export used throughout the client components.
+ */
 export const supabase = getBrowserClient()
+
+/* Default export for convenience: `import supabase from "@/lib/supabase/client"` */
 export default supabase

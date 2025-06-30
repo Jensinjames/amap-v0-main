@@ -1,8 +1,25 @@
-import { createServerClient as createSupabaseClient, type CookieOptions } from "@supabase/ssr"
-import type { cookies } from "next/headers"
+import { cookies } from "next/headers"
+import { createServerClient as createSupabaseServerClient, type CookieOptions } from "@supabase/ssr"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
-export function createServerClient(cookieStore: ReturnType<typeof cookies>) {
-  return createSupabaseClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+/**
+ * Environment variables are required for every invocation.
+ */
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
+}
+
+/**
+ * Returns a brand-new Supabase client for the current server request and
+ * transparently keeps auth cookies in sync.
+ */
+export function createClient(): SupabaseClient {
+  const cookieStore = cookies()
+
+  return createSupabaseServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value
@@ -10,21 +27,22 @@ export function createServerClient(cookieStore: ReturnType<typeof cookies>) {
       set(name: string, value: string, options: CookieOptions) {
         try {
           cookieStore.set({ name, value, ...options })
-        } catch (error) {
-          // The `set` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing
-          // user sessions.
+        } catch {
+          /* ignore — called from a Server Component */
         }
       },
       remove(name: string, options: CookieOptions) {
         try {
           cookieStore.set({ name, value: "", ...options })
-        } catch (error) {
-          // The `delete` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing
-          // user sessions.
+        } catch {
+          /* ignore — called from a Server Component */
         }
       },
     },
   })
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Backward compatibility: allow `createServerClient` import as well.        */
+/* -------------------------------------------------------------------------- */
+export { createClient as createServerClient }
