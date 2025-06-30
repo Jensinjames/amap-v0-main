@@ -1,28 +1,30 @@
 "use client"
 
-/**
- * Browser-side singleton Supabase client.
- * Ensures only ONE GoTrueClient exists in the same browser context.
- */
 import { createBrowserClient } from "@supabase/ssr"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+let _client: SupabaseClient | null = null
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  // Fail fast in development – in production this would surface in Vercel logs
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
-}
+/**
+ * Returns a singleton Supabase browser client.
+ * Ensures we don’t create multiple GoTrueClient instances.
+ */
+export function getSupabaseClient(): SupabaseClient {
+  if (_client) return _client
 
-let browserClient: SupabaseClient | undefined
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export function getBrowserClient() {
-  if (!browserClient) {
-    browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  if (!url || !anon) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY env vars")
   }
-  return browserClient
+
+  _client = createBrowserClient(url, anon)
+  return _client
 }
 
-// Named singleton export ‒ matches `import { supabase } from "@/lib/supabase/client"`
-export const supabase = getBrowserClient()
+/**
+ * Named export expected by other modules / build checker.
+ * Importing `supabase` is equivalent to calling `getSupabaseClient()`.
+ */
+export const supabase = getSupabaseClient()
