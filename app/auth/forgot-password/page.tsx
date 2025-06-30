@@ -1,9 +1,7 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { sendPasswordResetEmail } from "@/lib/auth"
+import { useState, type FormEvent } from "react"
+import { sendPasswordResetEmail } from "@/lib/auth-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,60 +10,59 @@ import Link from "next/link"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState("")
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
   const [error, setError] = useState("")
 
-  const handleResetPassword = async (e: React.FormEvent<HTMLFormElement>) => {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setLoading(true)
-    setMessage("")
+    setStatus("loading")
     setError("")
     try {
       await sendPasswordResetEmail(email)
-      setMessage("Password reset link sent! Please check your email.")
+      setStatus("success")
     } catch (err: any) {
       setError(err.message)
-    } finally {
-      setLoading(false)
+      setStatus("error")
     }
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Card className="w-full max-w-md mx-4">
+    <main className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+      <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Forgot Password</CardTitle>
-          <CardDescription>Enter your email to receive a reset link.</CardDescription>
+          <CardTitle className="text-2xl">Forgot password</CardTitle>
+          <CardDescription>Enter your email and we'll send you a reset link.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleResetPassword} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading || !!message}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={loading || !!message}>
-              {loading ? "Sending..." : "Send Reset Link"}
-            </Button>
-          </form>
-          {message && <p className="mt-4 text-sm font-medium text-green-600 text-center">{message}</p>}
-          {error && <p className="mt-4 text-sm font-medium text-red-600 text-center">{error}</p>}
+          {status === "success" ? (
+            <p className="text-center text-sm font-medium text-green-600">Reset link sent! Check your inbox.</p>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={status === "loading"}
+                />
+              </div>
+              <Button className="w-full" disabled={status === "loading"}>
+                {status === "loading" ? "Sending…" : "Send reset link"}
+              </Button>
+              {error && <p className="text-center text-sm font-medium text-red-600">{error}</p>}
+            </form>
+          )}
           <div className="mt-4 text-center text-sm">
-            Remember your password?{" "}
+            Remembered?{" "}
             <Link href="/auth/signin" className="underline hover:text-primary">
-              Sign In
+              Sign in
             </Link>
           </div>
         </CardContent>
       </Card>
-    </div>
+    </main>
   )
 }
