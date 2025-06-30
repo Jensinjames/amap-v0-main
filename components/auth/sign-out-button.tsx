@@ -5,7 +5,7 @@ import { LogOut } from "lucide-react"
 import { supabase } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 
-export function SignOutButton() {
+export default function SignOutButton() {
   const router = useRouter()
 
   const handleSignOut = async () => {
