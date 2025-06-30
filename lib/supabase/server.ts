@@ -1,22 +1,33 @@
-import { cookies } from "next/headers"
-import { createServerClient, type CookieOptions } from "@supabase/ssr"
+import { cookies, headers } from "next/headers"
+import { type CookieOptions, createServerClient } from "@supabase/ssr"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 /**
- * Returns a fresh Supabase client for each server request.
- * Keeps cookies in sync so the user session persists.
+ * Returns a **new** Supabase client for each server request while keeping
+ * auth cookies in sync.  Exported as `createClient` (what the build expects).
  */
-export function createSupabaseServerClient() {
-  return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+export function createClient(): SupabaseClient {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
+  }
+
+  const cookieStore = cookies()
+
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
-        return cookies().get(name)?.value
+        return cookieStore.get(name)?.value
       },
       set(name: string, value: string, options: CookieOptions) {
-        cookies().set({ name, value, ...options })
+        cookieStore.set({ name, value, ...options })
       },
       remove(name: string, options: CookieOptions) {
-        cookies().delete({ name, ...options })
+        cookieStore.delete({ name, ...options })
       },
     },
+    headers,
   })
 }
