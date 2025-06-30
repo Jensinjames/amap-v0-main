@@ -2,181 +2,104 @@
 
 import type React from "react"
 
-import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { Sparkles, Mail, Lock, ArrowLeft } from "lucide-react"
+import { signIn } from "next-auth/react"
+import { useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export default function SignInPage() {
-  const router = useRouter()
-  const supabase = createClientComponentClient()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState("")
+  const searchParams = useSearchParams()
+  const callbackUrl = searchParams.get("callbackUrl") || "/"
 
-  const handleEmailSignIn = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
-    setError(null)
+    setError("")
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      setError(error.message)
-      setIsLoading(false)
-    } else {
-      router.push("/dashboard")
-      router.refresh()
+    if (!email || !password) {
+      setError("Please fill in all fields.")
+      return
     }
-  }
 
-  const handleMagicLink = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
+    try {
+      const signInResponse = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl,
+      })
 
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${location.origin}/auth/callback`,
-      },
-    })
-
-    if (error) {
-      setError(error.message)
-      setIsLoading(false)
-    } else {
-      setIsLoading(false)
-      setMagicLinkSent(true)
+      if (signInResponse?.error) {
+        setError(
+          signInResponse.error === "CredentialsSignin"
+            ? "Invalid email or password."
+            : "An error occurred while signing in.",
+        )
+      } else {
+        // No error, sign-in was successful
+        window.location.href = callbackUrl // Redirect manually
+      }
+    } catch (err: any) {
+      console.error("An unexpected error occurred:", err)
+      setError("An unexpected error occurred. Please try again.")
     }
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center mb-8">
-          <Link href="/" className="flex items-center space-x-2 text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to home</span>
-          </Link>
-        </div>
-
-        <Card>
-          <CardHeader className="text-center">
-            <div className="flex justify-center mb-4">
-              <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
-                <Sparkles className="h-7 w-7 text-primary-foreground" />
-              </div>
+    <div className="flex items-center justify-center h-screen bg-gray-100">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl text-center">Sign In</CardTitle>
+          <CardDescription className="text-sm text-muted-foreground text-center">
+            Enter your email and password to sign in
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                placeholder="Enter your email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
-            <CardTitle className="text-2xl">Welcome back</CardTitle>
-            <CardDescription>Sign in to your AMAP account to continue creating amazing content</CardDescription>
-          </CardHeader>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-sm text-red-700 rounded-md p-3 text-center">
-              {error}
+            <div className="grid gap-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                placeholder="Enter your password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
-          )}
-
-          <CardContent className="space-y-6">
-            {magicLinkSent ? (
-              <div className="text-center space-y-4">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                  <Mail className="h-8 w-8 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold">Check your email</h3>
-                  <p className="text-sm text-muted-foreground mt-1">We've sent a magic link to {email}</p>
-                </div>
-                <Button variant="outline" onClick={() => setMagicLinkSent(false)} className="w-full">
-                  Try another method
-                </Button>
-              </div>
-            ) : (
-              <>
-                <form onSubmit={handleEmailSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Signing in...
-                      </>
-                    ) : (
-                      <>
-                        <Lock className="h-4 w-4 mr-2" />
-                        Sign In
-                      </>
-                    )}
-                  </Button>
-                </form>
-
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <Separator />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or</span>
-                  </div>
-                </div>
-
-                <form onSubmit={handleMagicLink} className="space-y-4">
-                  <Button type="submit" variant="outline" className="w-full bg-transparent" disabled={isLoading}>
-                    <Mail className="h-4 w-4 mr-2" />
-                    Send Magic Link
-                  </Button>
-                </form>
-
-                <div className="text-center space-y-2">
-                  <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
-                    Forgot your password?
-                  </Link>
-                  <p className="text-sm text-muted-foreground">
-                    Don't have an account?{" "}
-                    <Link href="/auth/signup" className="text-primary hover:underline">
-                      Sign up
-                    </Link>
-                  </p>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            <div className="flex items-center">
+              <Link href="/auth/forgot-password" className="ml-auto inline-block text-sm underline">
+                Forgot your password?
+              </Link>
+            </div>
+            {error && <p className="text-red-500 text-sm mt-2 text-center">{error}</p>}
+            <Button className="w-full mt-4" type="submit">
+              Sign In
+            </Button>
+          </form>
+          <div className="text-sm text-muted-foreground text-center">
+            Don't have an account?{" "}
+            <Link href="/auth/signup" className="underline">
+              Sign up
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -90,3 +90,19 @@ const createUserProfile = async (userId: string, email: string, firstName: strin
 
   if (creditsError) throw creditsError
 }
+
+export const sendPasswordResetEmail = async (email: string) => {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/auth/update-password`,
+  })
+
+  if (error) throw error
+  return data
+}
+
+export const updateUserPassword = async (password: string) => {
+  const { data, error } = await supabase.auth.updateUser({ password })
+
+  if (error) throw error
+  return data
+}
