@@ -10,16 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { CheckCircle, XCircle, AlertTriangle, Play, RefreshCw, Shield, Clock, User, Database } from "lucide-react"
-import {
-  testAdminFunctions,
-  checkAdminPermissions,
-  testDatabasePermissions,
-  getAdminUsers,
-  getAdminAuditLog,
-  type FunctionTestResult,
-  type AdminUser,
-  type AdminAction,
-} from "@/lib/admin-functions"
+import type { FunctionTestResult, AdminUser, AdminAction } from "@/lib/admin-functions" // import *types only*
 
 export default function AdminFunctionsPage() {
   const [functionResults, setFunctionResults] = useState<FunctionTestResult[]>([])
@@ -41,30 +32,36 @@ export default function AdminFunctionsPage() {
   const [activeTab, setActiveTab] = useState("functions")
 
   // Mock current user ID - in real app, get from auth context
-  const currentUserId = "00000000-0000-0000-0000-000000000000"
+  const currentUserId = "00000000-0000-0000-0000-000000000000" // TODO: replace with real auth id
 
   const runAllTests = async () => {
     setLoading(true)
     try {
-      // Test admin functions
-      const funcResults = await testAdminFunctions(currentUserId)
-      setFunctionResults(funcResults)
+      const res = await fetch(`/api/admin-tests?userId=${currentUserId}`)
+      if (!res.ok) throw new Error("Failed to fetch test data")
+      const { functionResults, permissions, dbPermissions, adminUsers, auditLog } = (await res.json()) as {
+        functionResults: FunctionTestResult[]
+        permissions: {
+          isAdmin: boolean
+          role?: string
+          permissions: Record<string, boolean>
+        }
+        dbPermissions: {
+          canReadUsers: boolean
+          canReadAdminUsers: boolean
+          canReadAuditLog: boolean
+          canExecuteFunctions: boolean
+          errors: string[]
+        }
+        adminUsers: AdminUser[]
+        auditLog: AdminAction[]
+      }
 
-      // Check permissions
-      const perms = await checkAdminPermissions(currentUserId)
-      setPermissions(perms)
-
-      // Test database permissions
-      const dbPerms = await testDatabasePermissions(currentUserId)
-      setDbPermissions(dbPerms)
-
-      // Get admin users
-      const admins = await getAdminUsers()
-      setAdminUsers(admins)
-
-      // Get audit log
-      const audit = await getAdminAuditLog(20)
-      setAuditLog(audit)
+      setFunctionResults(functionResults)
+      setPermissions(permissions)
+      setDbPermissions(dbPermissions)
+      setAdminUsers(adminUsers)
+      setAuditLog(auditLog)
     } catch (error) {
       console.error("Error running tests:", error)
     } finally {
