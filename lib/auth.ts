@@ -36,6 +36,7 @@ export async function signUp(formData: FormData) {
   })
 
   if (error) {
+    console.error(error)
     return redirect("/auth/signup?message=Could not create user")
   }
 
@@ -68,5 +69,11 @@ export async function updatePassword(formData: FormData) {
     return redirect("/auth/update-password?message=Could not update password")
   }
 
-  return redirect("/dashboard")
+  return redirect("/auth/signin?message=Password updated successfully. Please sign in.")
+}
+
+export async function signOut() {
+  const supabase = createClient()
+  await supabase.auth.signOut()
+  return redirect("/")
 }

@@ -1,18 +1,17 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
+
+import type React from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Sparkles, User, ArrowLeft, Mail } from "lucide-react"
-import Link from "next/link"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
-export default function SignUpPage() {
+export default function SignUpPage({ searchParams }: { searchParams: { message: string } }) {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -63,7 +62,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Link href="/" className="flex items-center space-x-2 text-muted-foreground hover:text-foreground">
@@ -72,15 +71,15 @@ export default function SignUpPage() {
           </Link>
         </div>
 
-        <Card>
-          <CardHeader className="text-center">
+        <Card className="mx-auto max-w-sm">
+          <CardHeader>
             <div className="flex justify-center mb-4">
               <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
                 <Sparkles className="h-7 w-7 text-primary-foreground" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Create your account</CardTitle>
-            <CardDescription>Start your 7-day free trial and create amazing content with AI</CardDescription>
+            <CardTitle className="text-xl">Sign Up</CardTitle>
+            <CardDescription>Enter your information to create an account</CardDescription>
           </CardHeader>
 
           <CardContent>
@@ -109,7 +108,7 @@ export default function SignUpPage() {
                     {error}
                   </div>
                 )}
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="grid gap-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="firstName">First Name</Label>
@@ -133,7 +132,7 @@ export default function SignUpPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
@@ -145,7 +144,7 @@ export default function SignUpPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="grid gap-2">
                     <Label htmlFor="password">Password</Label>
                     <Input
                       id="password"
@@ -157,7 +156,7 @@ export default function SignUpPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="grid gap-2">
                     <Label htmlFor="confirmPassword">Confirm Password</Label>
                     <Input
                       id="confirmPassword"
@@ -170,10 +169,12 @@ export default function SignUpPage() {
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <Checkbox
+                    <input
                       id="terms"
+                      type="checkbox"
                       checked={formData.agreeToTerms}
-                      onCheckedChange={(checked) => handleInputChange("agreeToTerms", checked as boolean)}
+                      onChange={(e) => handleInputChange("agreeToTerms", e.target.checked)}
+                      className="h-4 w-4 rounded border border-input bg-background shadow-sm"
                     />
                     <Label htmlFor="terms" className="text-sm">
                       I agree to the{" "}
@@ -202,13 +203,15 @@ export default function SignUpPage() {
                   </Button>
                 </form>
 
-                <div className="text-center mt-6">
-                  <p className="text-sm text-muted-foreground">
-                    Already have an account?{" "}
-                    <Link href="/auth/signin" className="text-primary hover:underline">
-                      Sign in
-                    </Link>
-                  </p>
+                {searchParams?.message && (
+                  <p className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 text-center rounded-md">{searchParams.message}</p>
+                )}
+
+                <div className="mt-4 text-center text-sm">
+                  Already have an account?{" "}
+                  <Link href="/auth/signin" className="underline">
+                    Sign in
+                  </Link>
                 </div>
               </>
             )}

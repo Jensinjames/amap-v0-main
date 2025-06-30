@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Sparkles, Mail, Lock, ArrowLeft } from "lucide-react"
 
-export default function SignInPage() {
+export default function SignInPage({ searchParams }: { searchParams: { message: string } }) {
   const router = useRouter()
   const supabase = createClientComponentClient()
   const [email, setEmail] = useState("")
@@ -62,7 +62,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Link href="/" className="flex items-center space-x-2 text-muted-foreground hover:text-foreground">
@@ -71,15 +71,15 @@ export default function SignInPage() {
           </Link>
         </div>
 
-        <Card>
-          <CardHeader className="text-center">
+        <Card className="mx-auto max-w-sm">
+          <CardHeader>
             <div className="flex justify-center mb-4">
               <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
                 <Sparkles className="h-7 w-7 text-primary-foreground" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Welcome back</CardTitle>
-            <CardDescription>Sign in to your AMAP account to continue creating amazing content</CardDescription>
+            <CardTitle className="text-2xl">Sign In</CardTitle>
+            <CardDescription>Enter your email below to login to your account</CardDescription>
           </CardHeader>
 
           {error && (
@@ -88,7 +88,7 @@ export default function SignInPage() {
             </div>
           )}
 
-          <CardContent className="space-y-6">
+          <CardContent>
             {magicLinkSent ? (
               <div className="text-center space-y-4">
                 <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
@@ -104,8 +104,8 @@ export default function SignInPage() {
               </div>
             ) : (
               <>
-                <form onSubmit={handleEmailSignIn} className="space-y-4">
-                  <div className="space-y-2">
+                <form onSubmit={handleEmailSignIn} className="grid gap-4">
+                  <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
@@ -117,9 +117,13 @@ export default function SignInPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-
+                  <div className="grid gap-2">
+                    <div className="flex items-center">
+                      <Label htmlFor="password">Password</Label>
+                      <Link href="/auth/forgot-password" className="ml-auto inline-block text-sm underline">
+                        Forgot your password?
+                      </Link>
+                    </div>
                     <Input
                       id="password"
                       type="password"
@@ -145,7 +149,7 @@ export default function SignInPage() {
                   </Button>
                 </form>
 
-                <div className="relative">
+                <div className="relative mt-4">
                   <div className="absolute inset-0 flex items-center">
                     <Separator />
                   </div>
@@ -154,27 +158,26 @@ export default function SignInPage() {
                   </div>
                 </div>
 
-                <form onSubmit={handleMagicLink} className="space-y-4">
+                <form onSubmit={handleMagicLink} className="grid gap-4 mt-4">
                   <Button type="submit" variant="outline" className="w-full bg-transparent" disabled={isLoading}>
                     <Mail className="h-4 w-4 mr-2" />
                     Send Magic Link
                   </Button>
                 </form>
 
-                <div className="text-center space-y-2">
-                  <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
-                    Forgot your password?
+                <div className="mt-4 text-center text-sm">
+                  Don&apos;t have an account?{" "}
+                  <Link href="/auth/signup" className="underline">
+                    Sign up
                   </Link>
-                  <p className="text-sm text-muted-foreground">
-                    Don't have an account?{" "}
-                    <Link href="/auth/signup" className="text-primary hover:underline">
-                      Sign up
-                    </Link>
-                  </p>
                 </div>
               </>
             )}
           </CardContent>
+
+          {searchParams?.message && (
+            <p className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 text-center rounded-md">{searchParams.message}</p>
+          )}
         </Card>
       </div>
     </div>
