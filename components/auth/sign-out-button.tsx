@@ -1,18 +1,15 @@
 "use client"
 
+import { useRouter } from "next/navigation"
+import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { supabase } from "@/lib/supabase/client"
-import { LogOut } from "lucide-react"
-import { useRouter } from "next/navigation"
-
-interface SignOutButtonProps {
-  className?: string
-}
 
 /**
- * Logs the user out and routes back to the sign-in page.
+ * Signs the user out and routes back to /auth/signin.
+ * Exported as DEFAULT so it satisfies `import SignOutButton from ...`
  */
-export default function SignOutButton({ className }: SignOutButtonProps) {
+export default function SignOutButton() {
   const router = useRouter()
 
   async function handleSignOut() {
@@ -21,9 +18,14 @@ export default function SignOutButton({ className }: SignOutButtonProps) {
   }
 
   return (
-    <Button variant="ghost" size="sm" onClick={handleSignOut} className={className}>
-      <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-      {"Sign out"}
+    <Button
+      onClick={handleSignOut}
+      variant="outline"
+      className="flex items-center gap-2 bg-transparent"
+      aria-label="Sign out"
+    >
+      <LogOut className="h-4 w-4" />
+      <span className="sr-only">Sign out</span>
     </Button>
   )
 }
