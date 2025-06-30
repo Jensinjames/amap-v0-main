@@ -1,415 +1,316 @@
--- Create utility functions for admin operations and analytics
--- Run this after all tables and data are created
+-- Create utility functions for the application
+-- Run this after creating all tables and inserting default data
 
--- Function to get admin dashboard statistics
-CREATE OR REPLACE FUNCTION get_admin_dashboard_stats()
+-- Function to get user statistics
+CREATE OR REPLACE FUNCTION public.get_user_stats(user_uuid UUID)
 RETURNS JSON AS $$
 DECLARE
   result JSON;
 BEGIN
   SELECT json_build_object(
-    'total_users', (SELECT COUNT(*) FROM public.users),
-    'active_users', (SELECT COUNT(*) FROM public.users WHERE status = 'active'),
-    'suspended_users', (SELECT COUNT(*) FROM public.users WHERE status = 'suspended'),
-    'pending_users', (SELECT COUNT(*) FROM public.users WHERE status = 'pending'),
-    'total_subscriptions', (SELECT COUNT(*) FROM public.user_plans),
-    'active_subscriptions', (SELECT COUNT(*) FROM public.user_plans WHERE status = 'active'),
-    'trial_subscriptions', (SELECT COUNT(*) FROM public.user_plans WHERE status = 'trialing'),
-    'canceled_subscriptions', (SELECT COUNT(*) FROM public.user_plans WHERE status = 'canceled'),
-    'total_content', (SELECT COUNT(*) FROM public.generated_content),
-    'content_today', (
-      SELECT COUNT(*) FROM public.generated_content 
-      WHERE created_at >= CURRENT_DATE
-    ),
-    'content_this_week', (
-      SELECT COUNT(*) FROM public.generated_content 
-      WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
-    ),
-    'content_this_month', (
-      SELECT COUNT(*) FROM public.generated_content 
-      WHERE created_at >= date_trunc('month', CURRENT_DATE)
-    ),
-    'total_credits_used', (SELECT COALESCE(SUM(credits_used), 0) FROM public.generated_content),
-    'credits_used_today', (
-      SELECT COALESCE(SUM(credits_used), 0) FROM public.generated_content 
-      WHERE created_at >= CURRENT_DATE
-    ),
-    'credits_used_this_week', (
-      SELECT COALESCE(SUM(credits_used), 0) FROM public.generated_content 
-      WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
-    ),
-    'credits_used_this_month', (
-      SELECT COALESCE(SUM(credits_used), 0) FROM public.generated_content 
-      WHERE created_at >= date_trunc('month', CURRENT_DATE)
-    ),
-    'revenue_this_month', (
-      SELECT COALESCE(SUM(
-        CASE up.plan_name
-          WHEN 'starter' THEN 29
-          WHEN 'growth' THEN 79
-          WHEN 'scale' THEN 199
-          ELSE 0
-        END
-      ), 0)
-      FROM public.user_plans up
-      WHERE up.status IN ('active', 'trialing')
-      AND up.current_period_start >= date_trunc('month', CURRENT_DATE)
-    ),
-    'recent_signups', (
-      SELECT COUNT(*) FROM public.users 
-      WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
-    ),
-    'plan_distribution', (
-      SELECT json_object_agg(plan_name, plan_count)
-      FROM (
-        SELECT plan_name, COUNT(*) as plan_count
-        FROM public.user_plans
-        WHERE status IN ('active', 'trialing')
-        GROUP BY plan_name
-      ) t
-    ),
-    'content_type_distribution', (
-      SELECT json_object_agg(content_type, type_count)
-      FROM (
-        SELECT content_type, COUNT(*) as type_count
-        FROM public.generated_content
-        WHERE created_at >= date_trunc('month', CURRENT_DATE)
-        GROUP BY content_type
-      ) t
-    )
-  ) INTO result;
+    'total_content', COALESCE(content_count, 0),
+    'credits_used', COALESCE(credits_used, 0),
+    'credits_remaining', COALESCE(credits_remaining, 0),
+    'plan_name', COALESCE(plan_name, 'No Plan'),
+    'team_count', COALESCE(team_count, 0),
+    'last_activity', last_activity
+  ) INTO result
+  FROM (
+    SELECT 
+      (SELECT COUNT(*) FROM public.generated_content WHERE user_id = user_uuid) as content_count,
+      (SELECT credits_used FROM public.user_credits WHERE user_id = user_uuid) as credits_used,
+      (SELECT (monthly_limit - credits_used) FROM public.user_credits WHERE user_id = user_uuid) as credits_remaining,
+      (SELECT plan_name FROM public.user_plans WHERE user_id = user_uuid) as plan_name,
+      (SELECT COUNT(*) FROM public.team_members WHERE user_id = user_uuid AND status = 'active') as team_count,
+      (SELECT MAX(created_at) FROM public.generated_content WHERE user_id = user_uuid) as last_activity
+  ) stats;
   
   RETURN result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to get detailed user information for admin
-CREATE OR REPLACE FUNCTION get_admin_user_details(user_id_param UUID)
-RETURNS JSON AS $$
+-- Function to check if user has sufficient credits
+CREATE OR REPLACE FUNCTION public.check_user_credits(user_uuid UUID, required_credits INTEGER DEFAULT 1)
+RETURNS BOOLEAN AS $$
 DECLARE
-  result JSON;
+  available_credits INTEGER;
 BEGIN
-  SELECT json_build_object(
-    'user', (
-      SELECT json_build_object(
-        'id', u.id,
-        'email', u.email,
-        'first_name', u.first_name,
-        'last_name', u.last_name,
-        'status', u.status,
-        'email_verified', u.email_verified,
-        'created_at', u.created_at,
-        'updated_at', u.updated_at,
-        'suspended_at', u.suspended_at,
-        'suspension_reason', u.suspension_reason
-      )
-      FROM public.users u
-      WHERE u.id = user_id_param
-    ),
-    'plan', (
-      SELECT json_build_object(
-        'id', up.id,
-        'plan_name', up.plan_name,
-        'status', up.status,
-        'credits_limit', up.credits_limit,
-        'seat_count', up.seat_count,
-        'trial_ends_at', up.trial_ends_at,
-        'current_period_start', up.current_period_start,
-        'current_period_end', up.current_period_end,
-        'stripe_customer_id', up.stripe_customer_id,
-        'stripe_subscription_id', up.stripe_subscription_id,
-        'created_at', up.created_at
-      )
-      FROM public.user_plans up
-      WHERE up.user_id = user_id_param
-    ),
-    'credits', (
-      SELECT json_build_object(
-        'id', uc.id,
-        'monthly_limit', uc.monthly_limit,
-        'credits_used', uc.credits_used,
-        'reset_at', uc.reset_at,
-        'usage_percentage', ROUND((uc.credits_used::DECIMAL / uc.monthly_limit::DECIMAL) * 100, 2)
-      )
-      FROM public.user_credits uc
-      WHERE uc.user_id = user_id_param
-    ),
-    'content_stats', (
-      SELECT json_build_object(
-        'total_generated', COUNT(*),
-        'total_credits_used', COALESCE(SUM(credits_used), 0),
-        'avg_credits_per_content', ROUND(AVG(credits_used), 2),
-        'last_generated', MAX(created_at),
-        'by_type', json_object_agg(content_type, type_stats)
-      )
-      FROM (
-        SELECT 
-          content_type,
-          json_build_object(
-            'count', COUNT(*),
-            'credits_used', SUM(credits_used),
-            'avg_credits', ROUND(AVG(credits_used), 2)
-          ) as type_stats,
-          credits_used
-        FROM public.generated_content
-        WHERE user_id = user_id_param
-        GROUP BY content_type, credits_used
-      ) t
-    ),
-    'team_info', (
-      SELECT json_build_object(
-        'owned_teams', (
-          SELECT json_agg(
-            json_build_object(
-              'id', t.id,
-              'name', t.name,
-              'created_at', t.created_at,
-              'member_count', (
-                SELECT COUNT(*) FROM public.team_members tm 
-                WHERE tm.team_id = t.id AND tm.status = 'active'
-              )
-            )
-          )
-          FROM public.teams t
-          WHERE t.owner_id = user_id_param
-        ),
-        'team_memberships', (
-          SELECT json_agg(
-            json_build_object(
-              'team_id', tm.team_id,
-              'team_name', t.name,
-              'role', tm.role,
-              'status', tm.status,
-              'joined_at', tm.joined_at
-            )
-          )
-          FROM public.team_members tm
-          JOIN public.teams t ON tm.team_id = t.id
-          WHERE tm.user_id = user_id_param
-        )
-      )
-    ),
-    'recent_content', (
-      SELECT json_agg(
-        json_build_object(
-          'id', gc.id,
-          'content_type', gc.content_type,
-          'title', gc.title,
-          'credits_used', gc.credits_used,
-          'status', gc.status,
-          'created_at', gc.created_at
-        )
-      )
-      FROM (
-        SELECT * FROM public.generated_content
-        WHERE user_id = user_id_param
-        ORDER BY created_at DESC
-        LIMIT 10
-      ) gc
-    ),
-    'integrations', (
-      SELECT json_agg(
-        json_build_object(
-          'provider', it.provider,
-          'is_active', it.is_active,
-          'created_at', it.created_at
-        )
-      )
-      FROM public.integration_tokens it
-      WHERE it.user_id = user_id_param
-    )
-  ) INTO result;
+  SELECT (monthly_limit - credits_used) INTO available_credits
+  FROM public.user_credits 
+  WHERE user_id = user_uuid;
   
-  RETURN result;
+  RETURN COALESCE(available_credits, 0) >= required_credits;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to get user list with pagination and filtering
-CREATE OR REPLACE FUNCTION get_admin_users_list(
-  page_size INTEGER DEFAULT 20,
-  page_offset INTEGER DEFAULT 0,
-  search_term TEXT DEFAULT NULL,
-  status_filter TEXT DEFAULT NULL,
-  plan_filter TEXT DEFAULT NULL,
-  sort_by TEXT DEFAULT 'created_at',
-  sort_order TEXT DEFAULT 'DESC'
-)
-RETURNS JSON AS $$
+-- Function to deduct credits from user
+CREATE OR REPLACE FUNCTION public.deduct_user_credits(user_uuid UUID, credits_to_deduct INTEGER DEFAULT 1)
+RETURNS BOOLEAN AS $$
 DECLARE
-  result JSON;
-  total_count INTEGER;
-  where_clause TEXT := '';
-  order_clause TEXT;
+  current_credits INTEGER;
+  available_credits INTEGER;
 BEGIN
-  -- Build WHERE clause
-  IF search_term IS NOT NULL AND search_term != '' THEN
-    where_clause := where_clause || ' AND (u.email ILIKE ''%' || search_term || '%'' OR u.first_name ILIKE ''%' || search_term || '%'' OR u.last_name ILIKE ''%' || search_term || '%'')';
+  -- Get current credit usage
+  SELECT credits_used, (monthly_limit - credits_used) INTO current_credits, available_credits
+  FROM public.user_credits 
+  WHERE user_id = user_uuid;
+  
+  -- Check if user has sufficient credits
+  IF available_credits < credits_to_deduct THEN
+    RETURN FALSE;
   END IF;
   
-  IF status_filter IS NOT NULL AND status_filter != '' THEN
-    where_clause := where_clause || ' AND u.status = ''' || status_filter || '''';
-  END IF;
+  -- Deduct credits
+  UPDATE public.user_credits 
+  SET credits_used = credits_used + credits_to_deduct,
+      updated_at = NOW()
+  WHERE user_id = user_uuid;
   
-  IF plan_filter IS NOT NULL AND plan_filter != '' THEN
-    where_clause := where_clause || ' AND up.plan_name = ''' || plan_filter || '''';
-  END IF;
-  
-  -- Build ORDER clause
-  order_clause := 'ORDER BY ' || sort_by || ' ' || sort_order;
-  
-  -- Get total count
-  EXECUTE 'SELECT COUNT(*) FROM public.users u LEFT JOIN public.user_plans up ON u.id = up.user_id WHERE 1=1' || where_clause
-  INTO total_count;
-  
-  -- Get paginated results
-  EXECUTE 'SELECT json_agg(
-    json_build_object(
-      ''id'', u.id,
-      ''email'', u.email,
-      ''first_name'', u.first_name,
-      ''last_name'', u.last_name,
-      ''status'', u.status,
-      ''email_verified'', u.email_verified,
-      ''created_at'', u.created_at,
-      ''plan_name'', up.plan_name,
-      ''plan_status'', up.status,
-      ''credits_used'', uc.credits_used,
-      ''credits_limit'', uc.monthly_limit,
-      ''last_activity'', (
-        SELECT MAX(created_at) FROM public.generated_content gc WHERE gc.user_id = u.id
-      )
-    )
-  )
-  FROM public.users u
-  LEFT JOIN public.user_plans up ON u.id = up.user_id
-  LEFT JOIN public.user_credits uc ON u.id = uc.user_id
-  WHERE 1=1' || where_clause || ' ' || order_clause || ' LIMIT ' || page_size || ' OFFSET ' || page_offset
-  INTO result;
-  
-  -- Return combined result
-  SELECT json_build_object(
-    'users', COALESCE(result, '[]'::json),
-    'total_count', total_count,
-    'page_size', page_size,
-    'page_offset', page_offset,
-    'has_more', (page_offset + page_size) < total_count
-  ) INTO result;
-  
-  RETURN result;
+  RETURN TRUE;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function to get subscription analytics
-CREATE OR REPLACE FUNCTION get_subscription_analytics(
-  start_date DATE DEFAULT CURRENT_DATE - INTERVAL '30 days',
-  end_date DATE DEFAULT CURRENT_DATE
-)
-RETURNS JSON AS $$
-DECLARE
-  result JSON;
-BEGIN
-  SELECT json_build_object(
-    'period', json_build_object(
-      'start_date', start_date,
-      'end_date', end_date
-    ),
-    'new_subscriptions', (
-      SELECT COUNT(*) FROM public.user_plans
-      WHERE created_at::DATE BETWEEN start_date AND end_date
-    ),
-    'canceled_subscriptions', (
-      SELECT COUNT(*) FROM public.user_plans
-      WHERE status = 'canceled' 
-      AND updated_at::DATE BETWEEN start_date AND end_date
-    ),
-    'trial_conversions', (
-      SELECT COUNT(*) FROM public.user_plans
-      WHERE status = 'active' 
-      AND trial_ends_at IS NOT NULL
-      AND updated_at::DATE BETWEEN start_date AND end_date
-    ),
-    'revenue_by_plan', (
-      SELECT json_object_agg(plan_name, revenue)
-      FROM (
-        SELECT 
-          up.plan_name,
-          COUNT(*) * CASE up.plan_name
-            WHEN 'starter' THEN 29
-            WHEN 'growth' THEN 79
-            WHEN 'scale' THEN 199
-            ELSE 0
-          END as revenue
-        FROM public.user_plans up
-        WHERE up.status IN ('active', 'trialing')
-        AND up.current_period_start::DATE BETWEEN start_date AND end_date
-        GROUP BY up.plan_name
-      ) t
-    ),
-    'churn_rate', (
-      SELECT ROUND(
-        (SELECT COUNT(*)::DECIMAL FROM public.user_plans WHERE status = 'canceled' AND updated_at::DATE BETWEEN start_date AND end_date) /
-        NULLIF((SELECT COUNT(*)::DECIMAL FROM public.user_plans WHERE created_at::DATE < start_date), 0) * 100,
-        2
-      )
-    ),
-    'daily_signups', (
-      SELECT json_object_agg(signup_date, signup_count)
-      FROM (
-        SELECT 
-          created_at::DATE as signup_date,
-          COUNT(*) as signup_count
-        FROM public.user_plans
-        WHERE created_at::DATE BETWEEN start_date AND end_date
-        GROUP BY created_at::DATE
-        ORDER BY created_at::DATE
-      ) t
-    )
-  ) INTO result;
-  
-  RETURN result;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Function to clean up expired impersonation sessions
-CREATE OR REPLACE FUNCTION cleanup_expired_impersonation_sessions()
-RETURNS INTEGER AS $$
-DECLARE
-  cleaned_count INTEGER;
-BEGIN
-  UPDATE public.admin_impersonation_sessions
-  SET is_active = false, ended_at = NOW()
-  WHERE is_active = true 
-  AND expires_at < NOW();
-  
-  GET DIAGNOSTICS cleaned_count = ROW_COUNT;
-  
-  RETURN cleaned_count;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Function to reset user credits (for monthly reset)
-CREATE OR REPLACE FUNCTION reset_user_credits()
+-- Function to reset monthly credits
+CREATE OR REPLACE FUNCTION public.reset_monthly_credits()
 RETURNS INTEGER AS $$
 DECLARE
   reset_count INTEGER;
 BEGIN
-  UPDATE public.user_credits
-  SET 
-    credits_used = 0,
-    reset_at = date_trunc('month', NOW()) + INTERVAL '1 month',
-    updated_at = NOW()
+  UPDATE public.user_credits 
+  SET credits_used = 0,
+      reset_at = (date_trunc('month', NOW()) + INTERVAL '1 month'),
+      updated_at = NOW()
   WHERE reset_at <= NOW();
   
   GET DIAGNOSTICS reset_count = ROW_COUNT;
-  
   RETURN reset_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant execute permissions to authenticated users for dashboard functions
-GRANT EXECUTE ON FUNCTION get_admin_dashboard_stats() TO authenticated;
-GRANT EXECUTE ON FUNCTION get_admin_user_details(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_admin_users_list(INTEGER, INTEGER, TEXT, TEXT, TEXT, TEXT, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION get_subscription_analytics(DATE, DATE) TO authenticated;
-GRANT EXECUTE ON FUNCTION cleanup_expired_impersonation_sessions() TO authenticated;
-GRANT EXECUTE ON FUNCTION reset_user_credits() TO authenticated;
+-- Function to get admin dashboard statistics
+CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats()
+RETURNS JSON AS $$
+DECLARE
+  result JSON;
+BEGIN
+  SELECT json_build_object(
+    'total_users', (SELECT COUNT(*) FROM public.users WHERE status = 'active'),
+    'total_subscriptions', (SELECT COUNT(*) FROM public.user_plans WHERE status = 'active'),
+    'total_content_generated', (SELECT COUNT(*) FROM public.generated_content),
+    'total_credits_used', (SELECT SUM(credits_used) FROM public.user_credits),
+    'monthly_revenue', (
+      SELECT COALESCE(SUM(sp.price), 0)
+      FROM public.user_plans up
+      JOIN public.subscription_plans sp ON up.plan_name = sp.name
+      WHERE up.status = 'active' AND sp.interval = 'month'
+    ),
+    'new_users_this_month', (
+      SELECT COUNT(*) FROM public.users 
+      WHERE created_at >= date_trunc('month', NOW())
+    ),
+    'content_generated_today', (
+      SELECT COUNT(*) FROM public.generated_content 
+      WHERE created_at >= date_trunc('day', NOW())
+    ),
+    'active_trials', (
+      SELECT COUNT(*) FROM public.user_plans 
+      WHERE status = 'trialing' AND trial_ends_at > NOW()
+    )
+  ) INTO result;
+  
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get user activity for admin
+CREATE OR REPLACE FUNCTION public.get_user_activity(limit_count INTEGER DEFAULT 50)
+RETURNS TABLE (
+  user_id UUID,
+  user_email TEXT,
+  activity_type TEXT,
+  activity_details TEXT,
+  created_at TIMESTAMP WITH TIME ZONE
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    u.id as user_id,
+    u.email as user_email,
+    'content_generated' as activity_type,
+    CONCAT('Generated ', gc.content_type, ': ', gc.title) as activity_details,
+    gc.created_at
+  FROM public.generated_content gc
+  JOIN public.users u ON gc.user_id = u.id
+  ORDER BY gc.created_at DESC
+  LIMIT limit_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to cleanup expired impersonation sessions
+CREATE OR REPLACE FUNCTION public.cleanup_expired_impersonation_sessions()
+RETURNS INTEGER AS $$
+DECLARE
+  cleanup_count INTEGER;
+BEGIN
+  UPDATE public.admin_impersonation_sessions 
+  SET is_active = false,
+      ended_at = NOW()
+  WHERE is_active = true 
+    AND expires_at <= NOW();
+  
+  GET DIAGNOSTICS cleanup_count = ROW_COUNT;
+  RETURN cleanup_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to log admin actions
+CREATE OR REPLACE FUNCTION public.log_admin_action(
+  admin_id UUID,
+  target_id UUID,
+  action_name TEXT,
+  action_details JSONB DEFAULT '{}'::JSONB,
+  ip_addr INET DEFAULT NULL,
+  user_agent_str TEXT DEFAULT NULL
+)
+RETURNS UUID AS $$
+DECLARE
+  log_id UUID;
+BEGIN
+  INSERT INTO public.admin_audit_log (
+    admin_user_id,
+    target_user_id,
+    action,
+    details,
+    ip_address,
+    user_agent
+  ) VALUES (
+    admin_id,
+    target_id,
+    action_name,
+    action_details,
+    ip_addr,
+    user_agent_str
+  ) RETURNING id INTO log_id;
+  
+  RETURN log_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to check if user is admin
+CREATE OR REPLACE FUNCTION public.is_user_admin(user_uuid UUID)
+RETURNS BOOLEAN AS $$
+DECLARE
+  is_admin BOOLEAN;
+BEGIN
+  SELECT EXISTS(
+    SELECT 1 FROM public.admin_users 
+    WHERE user_id = user_uuid
+  ) INTO is_admin;
+  
+  RETURN COALESCE(is_admin, false);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get user's admin role
+CREATE OR REPLACE FUNCTION public.get_user_admin_role(user_uuid UUID)
+RETURNS TEXT AS $$
+DECLARE
+  user_role TEXT;
+BEGIN
+  SELECT role INTO user_role
+  FROM public.admin_users 
+  WHERE user_id = user_uuid;
+  
+  RETURN user_role;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to create impersonation token
+CREATE OR REPLACE FUNCTION public.create_impersonation_token(
+  admin_id UUID,
+  target_id UUID,
+  duration_minutes INTEGER DEFAULT 60
+)
+RETURNS TEXT AS $$
+DECLARE
+  token_string TEXT;
+  expires_time TIMESTAMP WITH TIME ZONE;
+BEGIN
+  -- Generate a secure token
+  token_string := encode(gen_random_bytes(32), 'base64');
+  expires_time := NOW() + (duration_minutes || ' minutes')::INTERVAL;
+  
+  -- Insert the impersonation session
+  INSERT INTO public.admin_impersonation_sessions (
+    admin_user_id,
+    target_user_id,
+    token,
+    expires_at
+  ) VALUES (
+    admin_id,
+    target_id,
+    token_string,
+    expires_time
+  );
+  
+  -- Log the action
+  PERFORM public.log_admin_action(
+    admin_id,
+    target_id,
+    'impersonation_started',
+    json_build_object('expires_at', expires_time, 'duration_minutes', duration_minutes)::JSONB
+  );
+  
+  RETURN token_string;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to validate impersonation token
+CREATE OR REPLACE FUNCTION public.validate_impersonation_token(token_string TEXT)
+RETURNS UUID AS $$
+DECLARE
+  target_user_id UUID;
+BEGIN
+  SELECT target_user_id INTO target_user_id
+  FROM public.admin_impersonation_sessions
+  WHERE token = token_string
+    AND is_active = true
+    AND expires_at > NOW();
+  
+  RETURN target_user_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to end impersonation session
+CREATE OR REPLACE FUNCTION public.end_impersonation_session(token_string TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+  session_found BOOLEAN;
+BEGIN
+  UPDATE public.admin_impersonation_sessions
+  SET is_active = false,
+      ended_at = NOW()
+  WHERE token = token_string
+    AND is_active = true;
+  
+  GET DIAGNOSTICS session_found = FOUND;
+  RETURN session_found;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permissions to authenticated users
+GRANT EXECUTE ON FUNCTION public.get_user_stats(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.check_user_credits(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.deduct_user_credits(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_user_admin(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_user_admin_role(UUID) TO authenticated;
+
+-- Grant execute permissions for admin functions (these should be called via Edge Functions)
+GRANT EXECUTE ON FUNCTION public.reset_monthly_credits() TO service_role;
+GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats() TO service_role;
+GRANT EXECUTE ON FUNCTION public.get_user_activity(INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.cleanup_expired_impersonation_sessions() TO service_role;
+GRANT EXECUTE ON FUNCTION public.log_admin_action(UUID, UUID, TEXT, JSONB, INET, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.create_impersonation_token(UUID, UUID, INTEGER) TO service_role;
+GRANT EXECUTE ON FUNCTION public.validate_impersonation_token(TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.end_impersonation_session(TEXT) TO service_role;
