@@ -1,21 +1,33 @@
-import { NextResponse, type NextRequest } from "next/server"
-import { createMiddlewareClient } from "@supabase/ssr"
+import { type NextRequest, NextResponse } from "next/server"
+import { createServerClient, type CookieOptions } from "@supabase/ssr"
 
 /**
- * Refreshes the user session on every request so that Server Components have
- * an up-to-date cookie / auth state.
+ * Refreshes the user session cookie on every request.
+ * Called from `middleware.ts`.
  */
 export async function updateSession(request: NextRequest) {
+  /* This response will be returned (possibly mutated) */
   const response = NextResponse.next()
 
-  const supabase = createMiddlewareClient({
-    req: request,
-    res: response,
-    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-  })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          response.cookies.set({ name, value, ...options })
+        },
+        remove(name: string, options: CookieOptions) {
+          response.cookies.set({ name, value: "", ...options })
+        },
+      },
+    },
+  )
 
-  /* If the user has a session, this ensures it gets refreshed (rotation). */
+  /* If a session exists this will rotate / refresh the JWT if needed */
   await supabase.auth.getSession()
 
   return response

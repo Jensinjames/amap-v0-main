@@ -1,29 +1,23 @@
 "use client"
 
-import { useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase/client"
+import { getBrowserClient } from "@/lib/supabase/client"
 
 /**
- * A simple sign-out button.  After signing out we refresh the router so that
- * Server Components re-render in the anonymous state.
+ * Signs the user out and refreshes the current route.
  */
-export default function SignOutButton() {
+export function SignOutButton({ label = "Sign Out" }: { label?: string }) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
 
-  async function handleSignOut() {
+  const handleClick = async () => {
+    const supabase = getBrowserClient()
     await supabase.auth.signOut()
-    /* Refresh the entire app tree without a full page reload */
-    startTransition(() => router.refresh())
+    router.refresh()
   }
 
-  return (
-    <Button variant="outline" onClick={handleSignOut} disabled={isPending} aria-label="Sign out">
-      <LogOut className="mr-2 h-4 w-4" />
-      Sign&nbsp;Out
-    </Button>
-  )
+  return <Button onClick={handleClick}>{label}</Button>
 }
+
+/* Default export required by earlier imports */
+export default SignOutButton
