@@ -1,34 +1,34 @@
 "use client"
 
-/**
- * Singleton Supabase browser client.
- * Guarantees only ONE GoTrueClient instance in the browser,
- * preventing the “Multiple GoTrueClient instances detected” warning.
- */
 import { createBrowserClient } from "@supabase/ssr"
-import type { SupabaseClient } from "@supabase/supabase-js"
 
-let browserClient: SupabaseClient | undefined
-
-export function getBrowserClient(): SupabaseClient {
-  if (browserClient) return browserClient
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!url || !anon) {
-    throw new Error("Environment variables NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set.")
-  }
-
-  browserClient = createBrowserClient(url, anon)
-  return browserClient
+declare global {
+  // Ensures the client is stored on the global object to prevent multiple instances
+  // in Fast Refresh / Hot-Module-Replacement scenarios.
+  // eslint-disable-next-line no-var
+  var __supabase__: ReturnType<typeof createBrowserClient> | undefined
 }
 
 /**
- * Convenience singleton export so the rest of the codebase can:
- *   import { supabase } from "@/lib/supabase/client"
+ * Returns a singleton browser Supabase client.
+ * The same instance is reused across the entire client bundle,
+ * preventing “Multiple GoTrueClient instances detected” warnings.
  */
+export function getBrowserClient() {
+  if (!globalThis.__supabase__) {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    }
+
+    globalThis.__supabase__ = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    )
+  }
+  return globalThis.__supabase__
+}
+
 export const supabase = getBrowserClient()
 
-/* default export for modules that do `import supabase from ...` */
+// default export for convenience
 export default supabase
