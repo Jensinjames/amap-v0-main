@@ -1,6 +1,6 @@
-"use client"
-
-import { useState } from "react"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
+import { createServerClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,12 +21,27 @@ import {
   Download,
 } from "lucide-react"
 import Link from "next/link"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
 import SignOutButton from "@/components/auth/sign-out-button"
 
-export const dynamic = "force-dynamic"
+// Dummy data, as useState is not available in Server Components
+const currentPlan = {
+  name: "Growth",
+  status: "active",
+  trialDays: 0,
+  renewsAt: "Dec 15, 2024",
+}
+
+const credits = {
+  used: 45,
+  total: 200,
+  resetDate: "Dec 1, 2024",
+}
+
+const stats = {
+  assetsCreated: 127,
+  avgGenerationTime: "2.3s",
+  teamMembers: 3,
+}
 
 const contentTypes = [
   {
@@ -98,39 +113,23 @@ const recentContent = [
 ]
 
 export default async function DashboardPage() {
-  const supabase = createServerComponentClient({ cookies })
+  const cookieStore = cookies()
+  const supabase = createServerClient(cookieStore)
 
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
+  // This is the core protection logic.
+  // If there's no session, redirect to the sign-in page.
   if (!session) {
     redirect("/auth/signin")
   }
 
-  const [currentPlan] = useState({
-    name: "Growth",
-    status: "active",
-    trialDays: 0,
-    renewsAt: "Dec 15, 2024",
-  })
-
-  const [credits] = useState({
-    used: 45,
-    total: 200,
-    resetDate: "Dec 1, 2024",
-  })
-
-  const [stats] = useState({
-    assetsCreated: 127,
-    avgGenerationTime: "2.3s",
-    teamMembers: 3,
-  })
-
   const creditPercentage = (credits.used / credits.total) * 100
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 p-4 sm:p-6 md:p-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
