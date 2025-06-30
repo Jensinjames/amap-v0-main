@@ -1,17 +1,17 @@
 "use client"
 
 import { useState } from "react"
-
 import type React from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Sparkles, User, ArrowLeft, Mail } from "lucide-react"
+import { Sparkles, ArrowLeft, Mail } from "lucide-react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Checkbox } from "@/components/ui/checkbox"
 
-export default function SignUpPage({ searchParams }: { searchParams: { message: string } }) {
+export default function SignUpPage() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -32,6 +32,12 @@ export default function SignUpPage({ searchParams }: { searchParams: { message: 
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match.")
+      setIsLoading(false)
+      return
+    }
+
+    if (formData.password.length < 6) {
+      setError("Password must be at least 6 characters long.")
       setIsLoading(false)
       return
     }
@@ -62,7 +68,7 @@ export default function SignUpPage({ searchParams }: { searchParams: { message: 
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 p-4">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Link href="/" className="flex items-center space-x-2 text-muted-foreground hover:text-foreground">
@@ -169,43 +175,23 @@ export default function SignUpPage({ searchParams }: { searchParams: { message: 
                   </div>
 
                   <div className="flex items-center space-x-2">
-                    <input
+                    <Checkbox
                       id="terms"
-                      type="checkbox"
                       checked={formData.agreeToTerms}
-                      onChange={(e) => handleInputChange("agreeToTerms", e.target.checked)}
-                      className="h-4 w-4 rounded border border-input bg-background shadow-sm"
+                      onCheckedChange={(checked) => handleInputChange("agreeToTerms", !!checked)}
                     />
                     <Label htmlFor="terms" className="text-sm">
                       I agree to the{" "}
                       <Link href="/terms" className="text-primary hover:underline">
                         Terms of Service
-                      </Link>{" "}
-                      and{" "}
-                      <Link href="/privacy" className="text-primary hover:underline">
-                        Privacy Policy
                       </Link>
                     </Label>
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isLoading || !formData.agreeToTerms}>
-                    {isLoading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Creating account...
-                      </>
-                    ) : (
-                      <>
-                        <User className="h-4 w-4 mr-2" />
-                        Create Account
-                      </>
-                    )}
+                    {isLoading ? "Creating account..." : "Create Account"}
                   </Button>
                 </form>
-
-                {searchParams?.message && (
-                  <p className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 text-center rounded-md">{searchParams.message}</p>
-                )}
 
                 <div className="mt-4 text-center text-sm">
                   Already have an account?{" "}
