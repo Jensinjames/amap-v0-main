@@ -1,30 +1,27 @@
-"use server"
+import { getBrowserClient } from "./supabase/client"
+import { createClient as createServerClient } from "./supabase/server"
 
-import { createClient } from "@/lib/supabase/server"
-import { getBrowserClient } from "@/lib/supabase/client"
-
+/**
+ * CLIENT-SIDE helper – request a password-reset email.
+ * Can be called from React components or Server Actions.
+ */
 export async function sendPasswordResetEmail(email: string) {
-  // This function can be called from the client, but the reset email is sent by Supabase server-side.
-  // We use the browser client here to initiate the request.
   const supabase = getBrowserClient()
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${location.origin}/auth/update-password`,
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/update-password`,
   })
-  if (error) {
-    console.error("Error sending password reset email:", error)
-    throw new Error(error.message)
-  }
+  if (error) throw error
   return true
 }
 
+/**
+ * SERVER helper – update the user password using the access token that Supabase
+ * includes in the URL ({ type : "recovery" }).
+ * Must run on the server because it uses the secret session in the cookie.
+ */
 export async function updateUserPassword(newPassword: string) {
-  // This must be a server action because it requires an authenticated session
-  // to update the user's password.
-  const supabase = createClient()
+  const supabase = createServerClient()
   const { error } = await supabase.auth.updateUser({ password: newPassword })
-  if (error) {
-    console.error("Error updating user password:", error)
-    throw new Error(error.message)
-  }
+  if (error) throw error
   return true
 }

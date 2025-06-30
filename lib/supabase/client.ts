@@ -1,23 +1,25 @@
+"use client"
+
 /**
- * Browser-only singleton Supabase client.
- *
- * Exports
- * ──────────────────────────────────────────────────────────────
- * • getBrowserClient – function that always returns the same client
- * • supabase         – pre-created instance (named export)
- * • default          – same instance (default export)
+ * Browser-side singleton Supabase client.
+ * Ensures only ONE GoTrueClient exists in the same browser context.
  */
 import { createBrowserClient } from "@supabase/ssr"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
-let _client: ReturnType<typeof createBrowserClient> | undefined
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export function getBrowserClient() {
-  if (!_client) {
-    _client = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-  }
-  return _client
+if (!supabaseUrl || !supabaseAnonKey) {
+  // Fail fast in development – in production this would surface in Vercel logs
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
 }
 
-/* Named + default exports expected by the rest of the codebase */
-export const supabase = getBrowserClient()
-export default supabase
+let browserClient: SupabaseClient | undefined
+
+export function getBrowserClient() {
+  if (!browserClient) {
+    browserClient = createBrowserClient(supabaseUrl, supabaseAnonKey)
+  }
+  return browserClient
+}

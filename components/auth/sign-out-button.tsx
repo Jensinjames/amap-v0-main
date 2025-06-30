@@ -1,23 +1,32 @@
 "use client"
 
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { getBrowserClient } from "@/lib/supabase/client"
+import { LogOut } from "lucide-react"
+import { useState } from "react"
 
-/**
- * Signs the user out and refreshes the current route.
- */
-export function SignOutButton({ label = "Sign Out" }: { label?: string }) {
+export default function SignOutButton() {
   const router = useRouter()
+  const supabase = createClientComponentClient()
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleClick = async () => {
-    const supabase = getBrowserClient()
+  const handleSignOut = async () => {
+    setIsLoading(true)
     await supabase.auth.signOut()
-    router.refresh()
+    router.push("/")
+    router.refresh() // Ensure the server components are re-rendered
+    setIsLoading(false)
   }
 
-  return <Button onClick={handleClick}>{label}</Button>
+  return (
+    <Button onClick={handleSignOut} disabled={isLoading} className="w-full">
+      {isLoading ? (
+        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+      ) : (
+        <LogOut className="h-4 w-4 mr-2" />
+      )}
+      Sign Out
+    </Button>
+  )
 }
-
-/* Default export required by earlier imports */
-export default SignOutButton

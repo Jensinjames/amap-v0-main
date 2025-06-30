@@ -10,9 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Sparkles, Mail, ArrowLeft } from "lucide-react"
+import { Sparkles, Mail, Lock, ArrowLeft } from "lucide-react"
 
-export default function SignInPage() {
+export default function SignInPage({ searchParams }: { searchParams: { message: string } }) {
   const router = useRouter()
   const supabase = createClientComponentClient()
   const [email, setEmail] = useState("")
@@ -62,7 +62,7 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 p-4">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Link href="/" className="flex items-center space-x-2 text-muted-foreground hover:text-foreground">
@@ -135,7 +135,17 @@ export default function SignInPage() {
                   </div>
 
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Signing in..." : "Sign In"}
+                    {isLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                        Signing in...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="h-4 w-4 mr-2" />
+                        Sign In
+                      </>
+                    )}
                   </Button>
                 </form>
 
@@ -164,6 +174,10 @@ export default function SignInPage() {
               </>
             )}
           </CardContent>
+
+          {searchParams?.message && (
+            <p className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 text-center rounded-md">{searchParams.message}</p>
+          )}
         </Card>
       </div>
     </div>
