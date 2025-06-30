@@ -21,6 +21,12 @@ import {
   Download,
 } from "lucide-react"
 import Link from "next/link"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
+import SignOutButton from "@/components/auth/sign-out-button"
+
+export const dynamic = "force-dynamic"
 
 const contentTypes = [
   {
@@ -91,7 +97,17 @@ const recentContent = [
   },
 ]
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const supabase = createServerComponentClient({ cookies })
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session) {
+    redirect("/auth/signin")
+  }
+
   const [currentPlan] = useState({
     name: "Growth",
     status: "active",
@@ -132,8 +148,30 @@ export default function DashboardPage() {
               Create Content
             </Button>
           </Link>
+          <SignOutButton />
         </div>
       </div>
+
+      {/* Session Information Card */}
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle className="text-2xl">Welcome to your Dashboard</CardTitle>
+          <CardDescription>You have successfully logged in. Here is your session information.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-muted rounded-md text-sm overflow-x-auto">
+            <p>
+              <strong>Email:</strong> {session.user.email}
+            </p>
+            <p>
+              <strong>User ID:</strong> {session.user.id}
+            </p>
+            <p>
+              <strong>Expires at:</strong> {new Date(session.expires_at * 1000).toLocaleString()}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
