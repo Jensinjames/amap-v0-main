@@ -10,33 +10,56 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Sparkles, Mail, Lock, ArrowLeft } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 export default function SignInPage() {
+  const router = useRouter()
+  const supabase = createClientComponentClient()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    // TODO: Implement Supabase auth
-    setTimeout(() => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      setError(error.message)
       setIsLoading(false)
-      // Redirect to dashboard
-    }, 1000)
+    } else {
+      router.push("/dashboard")
+      router.refresh()
+    }
   }
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    // TODO: Implement Supabase magic link
-    setTimeout(() => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${location.origin}/auth/callback`,
+      },
+    })
+
+    if (error) {
+      setError(error.message)
+      setIsLoading(false)
+    } else {
       setIsLoading(false)
       setMagicLinkSent(true)
-    }, 1000)
+    }
   }
 
   return (
@@ -59,6 +82,12 @@ export default function SignInPage() {
             <CardTitle className="text-2xl">Welcome back</CardTitle>
             <CardDescription>Sign in to your AMAP account to continue creating amazing content</CardDescription>
           </CardHeader>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-sm text-red-700 rounded-md p-3 text-center">
+              {error}
+            </div>
+          )}
 
           <CardContent className="space-y-6">
             {magicLinkSent ? (
