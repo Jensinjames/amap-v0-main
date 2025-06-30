@@ -1,29 +1,32 @@
--- First, let's create the users table that extends Supabase auth.users
--- This script should be run first to establish the base user structure
+-- Create the users table that extends Supabase auth.users
+-- This must be run first before any other tables
 
 -- Enable necessary extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- Create enum types
+CREATE TYPE user_status AS ENUM ('active', 'suspended', 'pending', 'deleted');
 
 -- Create the public.users table that extends auth.users
--- This table stores additional user profile information
 CREATE TABLE IF NOT EXISTS public.users (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
   first_name TEXT,
   last_name TEXT,
   avatar_url TEXT,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'pending', 'inactive')),
+  status user_status DEFAULT 'active',
+  email_verified BOOLEAN DEFAULT false,
   suspended_at TIMESTAMP WITH TIME ZONE,
   suspension_reason TEXT,
-  email_verified BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create indexes for better performance
+-- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
 CREATE INDEX IF NOT EXISTS idx_users_status ON public.users(status);
-CREATE INDEX IF NOT EXISTS idx_users_created_at ON public.users(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON public.users(created_at);
 
 -- Enable Row Level Security
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
@@ -35,11 +38,10 @@ CREATE POLICY "Users can view own profile" ON public.users
 CREATE POLICY "Users can update own profile" ON public.users
   FOR UPDATE USING (auth.uid() = id);
 
--- Allow service role to manage all users (for admin functions)
-CREATE POLICY "Service role can manage all users" ON public.users
-  FOR ALL USING (auth.jwt() ->> 'role' = 'service_role');
+CREATE POLICY "Enable insert for authenticated users only" ON public.users
+  FOR INSERT WITH CHECK (auth.uid() = id);
 
--- Function to handle new user creation
+-- Create trigger to automatically create user profile
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -55,14 +57,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger to automatically create user profile when auth user is created
+-- Create trigger
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Function for automatic timestamp updates
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+-- Create trigger for updated_at
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
@@ -70,7 +72,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create trigger for updated_at
-CREATE TRIGGER update_users_updated_at 
+CREATE TRIGGER handle_users_updated_at
   BEFORE UPDATE ON public.users
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- Grant permissions
+GRANT SELECT, INSERT, UPDATE ON public.users TO authenticated;
+GRANT ALL ON public.users TO service_role;
