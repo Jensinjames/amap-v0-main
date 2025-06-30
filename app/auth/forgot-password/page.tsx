@@ -1,50 +1,81 @@
 "use client"
 
-import type React from "react"
-
 import { useState } from "react"
-import { sendPasswordResetEmail } from "@/lib/auth"
-import { Input } from "@/components/ui/input"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { sendPasswordResetEmail } from "@/lib/auth"
 
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("")
-  const [sent, setSent] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState("")
+  const [isSuccess, setIsSuccess] = useState(false)
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  const handleResetRequest = async (formData: FormData) => {
+    setIsLoading(true)
+    setMessage("")
+
+    const email = formData.get("email") as string
+
     try {
       await sendPasswordResetEmail(email)
-      setSent(true)
-    } catch (err: any) {
-      setError(err.message)
+      setMessage("Password reset link has been sent to your email!")
+      setIsSuccess(true)
+    } catch (error) {
+      setMessage("Could not send reset link. Please try again.")
+      setIsSuccess(false)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  if (sent) {
-    return (
-      <div className="max-w-md mx-auto py-16 text-center">
-        <h1 className="text-2xl font-semibold mb-4">Check your email</h1>
-        <p>We’ve sent you a link to reset your password.</p>
-      </div>
-    )
-  }
-
   return (
-    <form onSubmit={onSubmit} className="max-w-md mx-auto py-16 flex flex-col gap-4">
-      <h1 className="text-2xl font-semibold text-center">Forgot your password?</h1>
-      <Input
-        type="email"
-        placeholder="you@example.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-      />
-      {error && <p className="text-red-600 text-sm">{error}</p>}
-      <Button type="submit" className="w-full">
-        Send reset link
-      </Button>
-    </form>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center">Reset your password</CardTitle>
+          <CardDescription className="text-center">
+            Enter your email address and we'll send you a link to reset your password
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {message && (
+            <Alert className={isSuccess ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+              <AlertDescription className={isSuccess ? "text-green-800" : "text-red-800"}>{message}</AlertDescription>
+            </Alert>
+          )}
+
+          {!isSuccess && (
+            <form action={handleResetRequest} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  placeholder="Enter your email address"
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Sending..." : "Send Reset Link"}
+              </Button>
+            </form>
+          )}
+        </CardContent>
+        <CardFooter>
+          <div className="text-sm text-center w-full">
+            Remember your password?{" "}
+            <Link href="/auth/signin" className="text-blue-600 hover:text-blue-500">
+              Sign in
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
   )
 }

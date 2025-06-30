@@ -1,21 +1,21 @@
-import { cookies, headers } from "next/headers"
+import { cookies } from "next/headers"
 import { createServerClient, type CookieOptions } from "@supabase/ssr"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-if (!supabaseUrl || !supabaseAnon) {
-  throw new Error("Supabase env vars are missing")
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
 }
 
 /**
- * Creates a fresh Supabase client **per request** on the server.
+ * Creates a fresh Supabase client per request on the server.
  * Exported as `createClient` because the build checker looks for that name.
  */
 export function createClient() {
   const cookieStore = cookies()
 
-  return createServerClient(supabaseUrl, supabaseAnon, {
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value
@@ -26,9 +26,6 @@ export function createClient() {
       remove(name: string, options: CookieOptions) {
         cookieStore.delete({ name, ...options })
       },
-    },
-    headers: {
-      get: (key: string) => headers().get(key),
     },
   })
 }

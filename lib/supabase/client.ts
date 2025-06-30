@@ -1,14 +1,16 @@
+"use client"
+
 import { createBrowserClient } from "@supabase/ssr"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-if (!supabaseUrl || !supabaseAnon) {
-  throw new Error("Supabase env vars are missing")
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
 }
 
 /**
  * Singleton browser Supabase client.
- * Prevents “Multiple GoTrueClient instances detected” warning.
+ * Prevents "Multiple GoTrueClient instances detected" warning.
  */
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnon)
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)

@@ -1,223 +1,122 @@
 "use client"
 
 import { useState } from "react"
-
-import type React from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Sparkles, User, ArrowLeft, Mail } from "lucide-react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Checkbox } from "@/components/ui/checkbox"
+import { signUp } from "@/lib/auth"
 
-export default function SignUpPage({ searchParams }: { searchParams: { message: string } }) {
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    agreeToTerms: false,
-  })
+export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = createClientComponentClient()
-  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState("")
   const [isSuccess, setIsSuccess] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSignUp = async (formData: FormData) => {
     setIsLoading(true)
-    setError(null)
+    setMessage("")
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match.")
-      setIsLoading(false)
-      return
-    }
-
-    const { error } = await supabase.auth.signUp({
-      email: formData.email,
-      password: formData.password,
-      options: {
-        data: {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-        },
-        emailRedirectTo: `${location.origin}/auth/callback`,
-      },
-    })
-
-    if (error) {
-      setError(error.message)
-      setIsLoading(false)
-    } else {
-      setIsSuccess(true)
+    try {
+      await signUp(formData)
+    } catch (error) {
+      setMessage("Could not create account. Please try again.")
+      setIsSuccess(false)
+    } finally {
       setIsLoading(false)
     }
-  }
-
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center mb-8">
-          <Link href="/" className="flex items-center space-x-2 text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to home</span>
-          </Link>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold text-center">Create your account</CardTitle>
+          <CardDescription className="text-center">Enter your information to get started</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {message && (
+            <Alert className={isSuccess ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+              <AlertDescription className={isSuccess ? "text-green-800" : "text-red-800"}>{message}</AlertDescription>
+            </Alert>
+          )}
 
-        <Card className="mx-auto max-w-sm">
-          <CardHeader>
-            <div className="flex justify-center mb-4">
-              <div className="h-12 w-12 rounded-lg bg-primary flex items-center justify-center">
-                <Sparkles className="h-7 w-7 text-primary-foreground" />
+          <form action={handleSignUp} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First name</Label>
+                <Input
+                  id="firstName"
+                  name="firstName"
+                  type="text"
+                  autoComplete="given-name"
+                  required
+                  placeholder="John"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last name</Label>
+                <Input
+                  id="lastName"
+                  name="lastName"
+                  type="text"
+                  autoComplete="family-name"
+                  required
+                  placeholder="Doe"
+                />
               </div>
             </div>
-            <CardTitle className="text-xl">Sign Up</CardTitle>
-            <CardDescription>Enter your information to create an account</CardDescription>
-          </CardHeader>
-
-          <CardContent>
-            {isSuccess ? (
-              <div className="text-center space-y-4">
-                <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
-                  <Mail className="h-8 w-8 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-xl">Confirm your email</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    We've sent a verification link to <strong>{formData.email}</strong>. Please check your inbox to
-                    complete the sign-up process.
-                  </p>
-                </div>
-                <Link href="/auth/signin">
-                  <Button variant="outline" className="w-full bg-transparent">
-                    Back to Sign In
-                  </Button>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                placeholder="john@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                placeholder="Create a strong password"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox id="terms" required />
+              <Label htmlFor="terms" className="text-sm">
+                I agree to the{" "}
+                <Link href="/terms" className="text-blue-600 hover:text-blue-500">
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link href="/privacy" className="text-blue-600 hover:text-blue-500">
+                  Privacy Policy
                 </Link>
-              </div>
-            ) : (
-              <>
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-sm text-red-700 rounded-md p-3 text-center mb-4">
-                    {error}
-                  </div>
-                )}
-                <form onSubmit={handleSubmit} className="grid gap-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        placeholder="John"
-                        value={formData.firstName}
-                        onChange={(e) => handleInputChange("firstName", e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        placeholder="Doe"
-                        value={formData.lastName}
-                        onChange={(e) => handleInputChange("lastName", e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="john@example.com"
-                      value={formData.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Create a strong password"
-                      value={formData.password}
-                      onChange={(e) => handleInputChange("password", e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirm your password"
-                      value={formData.confirmPassword}
-                      onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <input
-                      id="terms"
-                      type="checkbox"
-                      checked={formData.agreeToTerms}
-                      onChange={(e) => handleInputChange("agreeToTerms", e.target.checked)}
-                      className="h-4 w-4 rounded border border-input bg-background shadow-sm"
-                    />
-                    <Label htmlFor="terms" className="text-sm">
-                      I agree to the{" "}
-                      <Link href="/terms" className="text-primary hover:underline">
-                        Terms of Service
-                      </Link>{" "}
-                      and{" "}
-                      <Link href="/privacy" className="text-primary hover:underline">
-                        Privacy Policy
-                      </Link>
-                    </Label>
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isLoading || !formData.agreeToTerms}>
-                    {isLoading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                        Creating account...
-                      </>
-                    ) : (
-                      <>
-                        <User className="h-4 w-4 mr-2" />
-                        Create Account
-                      </>
-                    )}
-                  </Button>
-                </form>
-
-                {searchParams?.message && (
-                  <p className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 text-center rounded-md">{searchParams.message}</p>
-                )}
-
-                <div className="mt-4 text-center text-sm">
-                  Already have an account?{" "}
-                  <Link href="/auth/signin" className="underline">
-                    Sign in
-                  </Link>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              </Label>
+            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? "Creating account..." : "Create Account"}
+            </Button>
+          </form>
+        </CardContent>
+        <CardFooter>
+          <div className="text-sm text-center w-full">
+            Already have an account?{" "}
+            <Link href="/auth/signin" className="text-blue-600 hover:text-blue-500">
+              Sign in
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   )
 }
